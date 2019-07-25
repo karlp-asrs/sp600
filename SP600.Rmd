@@ -1,0 +1,65 @@
+---
+title: "Comparison of Small Cap Indices"
+author: "Karl Polen"
+date: "June 4, 2019"
+output: 
+  html_document:
+    keep_md: TRUE
+---
+
+A comparison of total returns of the S&P 600 Index, MSCI Small and Russell 2000. 
+
+```{r, warning=FALSE, message=FALSE, warning=FALSE,echo=FALSE}
+Sys.setenv(JAVA_HOME='')
+library(ggplot2)
+library(tidyverse)
+library(Rbbg)
+library(lubridate)
+library(zoo)
+tickers=c("SPTRSMCP Index","M1USSC Index","RU20INTR Index")
+Names=c("S&P 600 TR","MSCI Small TR")
+conn=blpConnect(verbose=FALSE)
+start.date=today()-years(20)-months(4)
+end.date=today()
+bbgdat.orig=bdh(conn,tickers,"PX_LAST",start_date=start.date,end_date=end.date,
+           option_names="periodicitySelection",option_values="MONTHLY")
+x=blpDisconnect(conn)
+bbgdat=spread(bbgdat.orig,ticker,PX_LAST)
+bbgdat=bbgdat[!is.na(bbgdat$`M1USSC Index`),]
+bbgdat$date=as.Date(bbgdat$date,format="%Y-%m-%d")
+R2K=diff(log(zoo(bbgdat$'RU20INTR Index',bbgdat$date)))
+gdr2k=exp(cumsum(R2K))
+MSCI_Small=diff(log(zoo(bbgdat$'M1USSC Index',bbgdat$date)))
+gdmsci=exp(cumsum(MSCI_Small))
+sp600=diff(log(zoo(bbgdat$'SPTRSMCP Index',bbgdat$date)))
+gdsp600=exp(cumsum(sp600))
+delta_return=sp600-R2K
+roll_one_delta=rollapply(delta_return,12,sum,align="right")
+roll_one_df=data.frame(Date=index(roll_one_delta),Return=coredata(roll_one_delta))
+roll_one_df$Month=as.factor(month(roll_one_df$Date))
+gddiffmsci=gdsp600-gdmsci
+gddiffr2k=gdsp600-gdr2k
+gd_df=data.frame(SP600=gdsp600,R2K=gdr2k,MSCI=gdmsci,
+                 SP600_minus_R2K=gddiffr2k,SP600_minus_MSCI=gddiffmsci)
+gd_df$Date=as.Date(rownames(gd_df),format="%Y-%m-%d")
+#ggplot(roll_one_df,aes(x=Date,y=Return))+geom_point()
+#ggplot(roll_one_df,aes(x=Month,y=Return))+geom_boxplot()
+#ggplot(gd_df,aes(x=Date,y=gddiff*100))+geom_point()
+gd_dflong=gather(gd_df,"Index","Growth_of_Dollar",-Date)
+ggplot(gd_dflong,aes(x=Date,y=Growth_of_Dollar,color=Index),group_by=Index)+geom_line()+
+  ylab("Growth of Dollar")+ggtitle("Comparative Returns Small Cap Indices")+xlab("")
+delta_df=data.frame(Date=index(delta_return),Return=coredata(delta_return))
+delta_df$Date=as.Date(delta_df$Date,format="%Y-%m%d")
+delta_df$Month=as.factor(month(delta_df$Date))
+#ggplot(delta_df,aes(x=Month,y=Return))+geom_boxplot()
+ggplot(delta_df,aes(x=Date,y=Return))+geom_line()+geom_smooth()+
+  ggtitle("SP600 minus R2K")+ylab("Monthly Return Difference")+xlab("")
+
+mdelta_return=sp600-MSCI_Small
+delta_df=data.frame(Date=index(mdelta_return),Return=coredata(mdelta_return))
+delta_df$Date=as.Date(delta_df$Date,format="%Y-%m%d")
+delta_df$Month=as.factor(month(delta_df$Date))
+#ggplot(delta_df,aes(x=Month,y=Return))+geom_boxplot()
+ggplot(delta_df,aes(x=Date,y=Return))+geom_line()+geom_smooth()+
+  ggtitle("SP600 minus MSCI Small")+ylab("Monthly Return Difference")+xlab("")
+```
